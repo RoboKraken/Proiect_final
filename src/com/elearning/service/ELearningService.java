@@ -1,5 +1,6 @@
 package com.elearning.service;
 
+import com.elearning.audit.AuditService;
 import com.elearning.exception.CourseNotFoundException;
 import com.elearning.exception.DuplicateEnrollmentException;
 import com.elearning.exception.UnauthorizedActionException;
@@ -11,13 +12,15 @@ import java.util.*;
 public class ELearningService {
     private static ELearningService instance; //singleton , sa fie doar o instanta in memorie
 
+    private final AuditService auditService;
     private final List<User> utilizatori;
     private final Map<String, Category> categorii;
     private final TreeSet<Course> cursuri;
     private final List<Enrollment> inscrieri;
     private final List<QuizResult> rezultateQuizuri;
 
-    private ELearningService() { //initializare la constructor pt tipurile complexe de date
+    private ELearningService() {
+        auditService = AuditService.getInstance();
         utilizatori = new ArrayList<>();
         categorii = new HashMap<>();
         cursuri = new TreeSet<>();
@@ -34,19 +37,23 @@ public class ELearningService {
 
     public void inregistrareUtilizator(User user) {
         utilizatori.add(user);
+        auditService.logAction("inregistrare_utilizator");
     }
 
     public void adaugaCategorie(Category categorie) {
         categorii.put(categorie.getNume(), categorie);
+        auditService.logAction("adaugare_categorie");
     }
 
     public Category gasesteCategorie(String nume) {
+        auditService.logAction("gasire_categorie");
         return categorii.get(nume);
     }
 
     public void creareCurs(Course curs) {
         cursuri.add(curs);
         curs.getProfesorTitular().adaugaCurs(curs);
+        auditService.logAction("creare_curs");
     }
 
     public void inrolareStudent(Student student, Course curs) throws DuplicateEnrollmentException, CourseNotFoundException {
@@ -58,11 +65,13 @@ public class ELearningService {
                 throw new DuplicateEnrollmentException("Studentul " + student.getNume() + " este deja inscris la " + curs.getTitlu());
             }
         }
-        inscrieri.add(new Enrollment(inscrieri.size() + 1, student, curs)); //id-ul este generat pe baza dimensiunii listei; valid doar pentru date in-memory fara stergeri
+        inscrieri.add(new Enrollment(inscrieri.size() + 1, student, curs));
         student.adaugaCurs(curs);
+        auditService.logAction("inrolare_student");
     }
 
     public List<Course> cautareCursuriDupaCategorie(String numeCategorie) {
+        auditService.logAction("cautare_cursuri_dupa_categorie");
         List<Course> rezultat = new ArrayList<>();
         for (Course curs : cursuri) {
             if (curs.getCategorie().getNume().equalsIgnoreCase(numeCategorie)) {
@@ -73,10 +82,12 @@ public class ELearningService {
     }
 
     public TreeSet<Course> sortareCursuriAlfabetic() {
+        auditService.logAction("sortare_cursuri_alfabetic");
         return cursuri;
     }
 
     public List<Course> sortareCursuriDupaPret() {
+        auditService.logAction("sortare_cursuri_dupa_pret");
         List<Course> lista = new ArrayList<>(cursuri);
         lista.sort(new CourseByPriceComparator());
         return lista;
@@ -87,6 +98,7 @@ public class ELearningService {
             throw new CourseNotFoundException("Cursul nu exista in sistem: " + curs.getTitlu());
         }
         curs.adaugaLectie(lectie);
+        auditService.logAction("adaugare_lectie");
     }
 
     public void creareQuiz(Course curs, Quiz quiz) throws CourseNotFoundException {
@@ -94,9 +106,11 @@ public class ELearningService {
             throw new CourseNotFoundException("Cursul nu exista in sistem: " + curs.getTitlu());
         }
         curs.adaugaQuiz(quiz);
+        auditService.logAction("creare_quiz");
     }
 
     public List<Student> listareStudentiPerCurs(Course curs) {
+        auditService.logAction("listare_studenti_per_curs");
         List<Student> studenti = new ArrayList<>();
         for (Enrollment enrollment : inscrieri) {
             if (enrollment.getCurs().equals(curs)) {
@@ -112,12 +126,14 @@ public class ELearningService {
         }
         user.setNume(numeNou);
         user.setEmail(emailNou);
+        auditService.logAction("actualizare_profil");
     }
 
     public double raportVenituriProfesor(Teacher teacher) {
+        auditService.logAction("raport_venituri_profesor");
         double total = 0;
         for (Course curs : teacher.getCursuriPredate()) {
-            for (Enrollment enrollment : inscrieri) { //pentru fiecare inscriere la cursul profesorului, se aduna pretul cursului
+            for (Enrollment enrollment : inscrieri) {
                 if (enrollment.getCurs().equals(curs)) {
                     total += curs.getPret();
                 }
@@ -141,6 +157,7 @@ public class ELearningService {
             throw new UnauthorizedActionException("Studentul nu este inscris la cursul acestui quiz.");
         }
         rezultateQuizuri.add(new QuizResult(rezultateQuizuri.size() + 1, student, quiz, punctajObtinut));
+        auditService.logAction("inregistrare_rezultat_quiz");
     }
 
     public List<QuizResult> getRezultateQuizuri() {
